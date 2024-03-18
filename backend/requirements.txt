@@ -1,0 +1,15 @@
+SQLAlchemy == 2.0.23
+pydantic ==  2.5.2
+uvicorn == 0.25.0
+fastapi_versioning == 0.10.0
+fastapi[all] == 0.106.0
+streamlit == 1.32.1
+requests == 2.29.0
+openpyxl == 3.1.2
+passlib == 1.7.4
+streamlit-aggrid == 0.3.4
+pandas == 2.0.3
+bcrypt == 4.1.2
+SQLAlchemy-Utils==0.41.1
+python-jose == 3.3.0
+psycopg2-binary == 2.9.9

@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+
+  db:
+    image: "postgres:13"
+    environment:
+      POSTGRES_USER: "admin"
+      POSTGRES_PASSWORD: "admin"
+      POSTGRES_DB: "cleanDataset"
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-U", "postgres", "-d", "cleanDataset", "-h", "db"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      DB_URL: "postgresql://admin:admin@db:5432/cleanDataset"
+    # command: ["/bin/sh", "-c", "python3 -m wait_for_dataset && python3 -m uvicorn main:app --host 0.0.0.0 --port 8000"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "8072:8072"
+    depends_on:
+      - db
+      - backend
+    # command: ["streamlit", "run", "mainUI.py", "--server.port", "8072"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8072"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  db-data:
