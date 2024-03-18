@@ -20,10 +20,10 @@
 ```sh
 Najprej v glavnem folderju ustvarimo virtualno okolje.
 
-`conda activate myenv`
+conda activate myenv
 
 Zaženemo Docker Compose.
 
-`docker-compose up --build`
+docker-compose up --build
 
 ```
