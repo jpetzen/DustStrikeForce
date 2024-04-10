@@ -514,7 +514,6 @@ def sredstva(token):
     if st.button("Submit"):
         if not all(new_row_data.values()):
             st.error("Please fill in all fields.")
-            return
         else:
             nova_sredstva = shemas.Sredstva(
                 user_username=current_user,
