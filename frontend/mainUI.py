@@ -27,7 +27,7 @@ logging.basicConfig(
 
 
 BACKEND_URL = "http://backend:8000"
-SECRET_KEY = "b3f6e6b9b7f3d2c7a6f9d4e7c8b5a2f1"
+SECRET_KEY = "Your key"
 
 # check if any token was used in last 30 minutes (database session)
 
@@ -97,27 +97,6 @@ def add_to_session_db(token, user, expiration_time):
 #                         MAIN
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def add_initial_admin_user():
-    admin_email = "admin@gmail.com"
-    admin_username = "Admin"
-    admin_password = "seminarDelamo!?Letos3"
-    # Check if the user already exists
-    url = BACKEND_URL + f"/users/{admin_username}"
-    response = requests.get(url)
-    if response.status_code == 404:
-        # If the user doesn't exist, add the initial admin user
-        url = BACKEND_URL + "/sign-up"
-        response = requests.post(
-            url, json={"email": admin_email, "username": admin_username, "password": admin_password, "role": "admin"}
-        )
-        if response.status_code == 201:
-            logging.info("Initial admin user added successfully.")
-        else:
-            logging.error("Failed to add initial admin user.")
-    else:
-        logging.info("Admin user already exists.")
-
-
 def is_token_valid(token):
     try:
         decoded_token = decode_jwt_token(token)
@@ -134,7 +113,6 @@ def is_token_valid(token):
 def main():
     st.sidebar.image("logo.png", width=200)
     st.sidebar.title("Dust Strike Force")
-    add_initial_admin_user()
     
     if 'is_logged_in' not in st.session_state:
         # check if active token (from last session)
