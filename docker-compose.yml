@@ -3,7 +3,7 @@ version: "3.9"
 services:
 
   db:
-    image: "postgres:13"
+    image: petzen21/postgres:latest
     environment:
       POSTGRES_USER: "admin"
       POSTGRES_PASSWORD: "admin"
@@ -19,15 +19,13 @@ services:
       retries: 3
 
   backend:
-    build:
-      context: ./backend
+    image: petzen21/force_backend:2.0.5
     ports:
       - "8000:8000"
     depends_on:
       - db
     environment:
       DB_URL: "postgresql://admin:admin@db:5432/cleanDataset"
-    # command: ["/bin/sh", "-c", "python3 -m wait_for_dataset && python3 -m uvicorn main:app --host 0.0.0.0 --port 8000"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 10s
@@ -35,14 +33,12 @@ services:
       retries: 3
 
   frontend:
-    build:
-      context: ./frontend
+    image: petzen21/force_frontend:2.0.5
     ports:
       - "8072:8072"
     depends_on:
       - db
       - backend
-    # command: ["streamlit", "run", "mainUI.py", "--server.port", "8072"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8072"]
       interval: 10s
