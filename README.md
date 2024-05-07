@@ -1,29 +1,28 @@
 # Dust Strike Force
-## Conda env: Docker+Streamlit+Fastapi+SQL+jwt  
+## Conda env Streamlit+Fastapi+sql+jwt with Docker 
 
 ---
 
-### Kazalo
+### Table of Contents
 
-* [Narajeno z](#Narejeno-z)
-* [Navodila](#Navodila)
+* [Made with](#Made_with)
+* [Navodila](#Instructions)
 
-### Narejeno z
+### Made with
 
-* [Streamlit](https://streamlit.io/) - Python knjižnica, ki poenostavlja ustvarjanje spletnih aplikacij za podatkovno znanost in strojno učenje, saj omogoča razvijalcem hitro pretvorbo skript za obdelavo podatkov v deljive spletne aplikacije.
-* [FastAPI](https://fastapi.tiangolo.com/) - FastAPI je sodoben, hitro delujoč (high-performance) spletni ogrodje za gradnjo vmesnikov za programiranje aplikacijskih vmesnikov (API) s pomočjo Pythona
-* [SQLite](https://www.sqlalchemy.org/) -  SQLite je lahka in samozadostna relacijska baza podatkov, ki je široko uporabljena za vgrajene sisteme in aplikacije manjšega obsega.
-* [Docker](https://www.docker.com/) - Docker je odprtokodna platforma za razvoj, dostavo in upravljanje aplikacij v kontejnerjih.
+* [Streamlit](https://streamlit.io/) - Streamlit is a Python library that simplifies the creation of web applications for data science and machine learning, enabling developers to quickly convert data processing scripts into shareable web applications.
+* [FastAPI](https://fastapi.tiangolo.com/) -  FastAPI is a modern, high-performance web framework for building application programming interface (API) interfaces using Python.
+* [SQLite](https://www.sqlalchemy.org/) -  SQLite is a lightweight and self-contained relational database widely used for embedded systems and small-scale applications.
+* [Docker](https://www.docker.com/) -  Docker is a platform for writing containerized applications.
 
-### Navodila
+### Instructions
 
 ```sh
-Najprej v glavnem folderju ustvarimo virtualno okolje.
 
-`conda activate myenv`
-
-Zaženemo Docker Compose.
-
-`docker-compose up --build`
+`docker pull petzen21/force_frontend:2.0.5`
+`docker pull petzen21/force_backend:2.0.5`
+`docker pull petzen21/postgres:latest`
+`docker compose up`
 
 ```
+User visits: http://localhost:8072/
