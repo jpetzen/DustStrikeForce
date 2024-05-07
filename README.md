@@ -6,7 +6,7 @@
 ### Table of Contents
 
 * [Made with](#Made_with)
-* [Navodila](#Instructions)
+* [Instructions](#Instructions)
 
 ### Made with
 
