@@ -23,8 +23,9 @@ class Sredstva(BaseModel):
     stevilo: int
     denar: float
     date: datetime
+
     class Config:
-        arbitrary_types_allowed = True   
+        arbitrary_types_allowed = True
 
 
 class Evidenca(BaseModel):
@@ -32,16 +33,22 @@ class Evidenca(BaseModel):
     opravilo: str
     done: bool
     datum: datetime
+
     class Config:
         arbitrary_types_allowed = True
 
 
 class Token(BaseModel):
     access_token: str
-    token_type: str   
+    token_type: str
 
 
 class ResetToken(BaseModel):
     token: str
     expiration_time: datetime
     user: str
+
+
+class LoginUser(BaseModel):
+    email: str
+    password: str
