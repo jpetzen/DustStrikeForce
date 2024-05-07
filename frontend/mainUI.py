@@ -2,15 +2,13 @@ import re
 import requests
 import streamlit as st
 from database_delo import SessionLocal, Uporabniki
-from passlib.context import CryptContext
 import pandas as pd
 import logging
 import shemas
 import time
-import bcrypt
-from jose import JWTError, jwt
+from jose import jwt
 from datetime import datetime, timedelta
-
+import hashlib
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #                         SETUP
@@ -19,15 +17,15 @@ from datetime import datetime, timedelta
 
 # Configure the logging module
 logging.basicConfig(
-#   filename='example.log',
+    # filename='example.log',
     level=logging.DEBUG,
-    format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
+    format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',  # noqa: E501
     datefmt='%Y-%m-%d %H:%M:%S',
 )
 
 
 BACKEND_URL = "http://backend:8000"
-SECRET_KEY = "Your key"
+SECRET_KEY = "b3f6e6b9b7f3d2c7a6f9d4e7c8b5a2f1"
 
 # check if any token was used in last 30 minutes (database session)
 
@@ -60,7 +58,7 @@ def get_cistila():
 
 def decode_jwt_token(token):
     try:
-        token = token.strip() 
+        token = token.strip()
         if isinstance(token, str):  # Check if token is a string
             decoded_token = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
             return decoded_token
@@ -76,7 +74,7 @@ def decode_jwt_token(token):
 
 
 def get_active_token():
-    url = BACKEND_URL + "/session/"
+    url = BACKEND_URL + "/session"
     active_token = requests.get(url).json()
     return (active_token.get("token"), active_token.get("user"))
 
@@ -84,11 +82,13 @@ def get_active_token():
 def clear_session_db():
     requests.post(BACKEND_URL + "/clear_session/")
     return
-    
+
+
 def add_to_session_db(token, user, expiration_time):
-    url = BACKEND_URL + "/session/"
+    url = BACKEND_URL + "/session_create"
     requests.post(url,
-                  json={"token": token, "user": user, "expiration_time": expiration_time},
+                  json={"token": token, "user": user,
+                        "expiration_time": expiration_time},
                   headers={'Content-Type': 'application/json'})
     return
 
@@ -96,6 +96,7 @@ def add_to_session_db(token, user, expiration_time):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #                         MAIN
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 
 def is_token_valid(token):
     try:
@@ -113,7 +114,7 @@ def is_token_valid(token):
 def main():
     st.sidebar.image("logo.png", width=200)
     st.sidebar.title("Dust Strike Force")
-    
+
     if 'is_logged_in' not in st.session_state:
         # check if active token (from last session)
         token, username = get_active_token()
@@ -141,19 +142,19 @@ def main():
         if selected_option == "Login":
             login()
         elif selected_option == "Sign Up":
-            sign_up()  
-                
+            sign_up()
+
     else:
         # Get current user role
         decoded_token = decode_jwt_token(st.session_state.token)
         user_role = decoded_token.get("role", "")
         if user_role == "admin":
             selected_option = st.sidebar.radio(
-                "Select Option", ["Chores", "Cleaning agents", "Manage Users", "Manage Chores", "Manage Cleaning agents", "Log Out"], key="other_options"
+                "Select Option", ["Chores", "Cleaning agents", "Manage Users", "Manage Chores", "Manage Cleaning agents", "Log Out"], key="other_options"  # noqa: E501
             )
         else:
             selected_option = st.sidebar.radio(
-                "Select Option", ["Chores", "Cleaning agents","API documentation" ,"Log Out"], key="other_options"
+                "Select Option", ["Chores", "Cleaning agents", "API documentation", "Log Out"], key="other_options"  # noqa: E501
             )
         st.title(selected_option)
         # Display the appropriate content based on the selected option
@@ -171,8 +172,8 @@ def main():
             manage_sredstva()
         elif selected_option == "Log Out":
             log_out()
-                
-                
+
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #                         LOGIN
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -204,12 +205,12 @@ def get_current_user(token):
     return user_info.get('username') if user_info else None
 
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
 def verify_password(plain_password, hashed_password):
-    # Verify the plain password against the hashed password
-    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+    # Hash the plain password
+    hashed_plain_password = hash_password(plain_password)
+
+    # Compare the hashed plain password with the hashed password
+    return hashed_plain_password == hashed_password
 
 
 def authenticate_user_with_token(token):
@@ -224,41 +225,35 @@ def authenticate_user_with_token(token):
         return None
 
 
+def hash_password(password: str) -> str:
+    try:
+        # Create a SHA-512 hash object
+        md = hashlib.sha512()
+
+        # Update the hash object with the password bytes
+        md.update(password.encode('utf-8'))
+
+        # Get the hexadecimal representation of the hash digest
+        hashed_string = md.hexdigest()
+
+        return hashed_string
+    except Exception as e:
+        # Handle the exception (e.g., log, show an error message)
+        print(e)
+        return None
+
+
+
 def authenticate_user(email: str, password: str):
-    # Get the database session
-    db = SessionLocal()
+    hash_pswd = hash_password(password)
+    url = BACKEND_URL + "/auth_user"
     try:
-        # Query the user from the database
-        user = db.query(Uporabniki).filter(Uporabniki.email == email).first()
-
-        # Check if the user exists and the password is correct
-        if user and verify_password(password, user.password):
-            token_payload = {
-                "sub": user.email,
-                "role": user.role,  # Include other relevant claims
-                "exp": datetime.utcnow() + timedelta(hours=6)  # Set expiration time
-            }
-            secret_key = SECRET_KEY  # Replace with your actual secret key
-            token = jwt.encode(token_payload, secret_key, algorithm="HS256")
-            return token
-    finally:
-        db.close()
-
-    return None
-
-
-def current_user(email: str, password: str):
-    # Get the database session
-    db = SessionLocal()
-    try:
-        # Query the user from the database
-        user = db.query(Uporabniki).filter(Uporabniki.email == email).first()
-        # Check if the user exists and the password is correct
-        if user and verify_password(password, user.password):
-            return user.username
-    finally:
-        db.close()
-    return None
+        response = requests.post(url,
+                                 json={"email": email,
+                                       "password": hash_pswd})
+        return response.json()['token']
+    except:
+        return None
 
 
 def login():
@@ -270,24 +265,19 @@ def login():
         submit_button = st.form_submit_button("Login")
         if submit_button:
             placeholder.empty()
-            # Check if the email and password are valid
             token = authenticate_user(email, password)
             token_str = str(token)
             if token:
                 decoded_token = decode_jwt_token(token_str)
-                uporabnik = get_current_user(token)
-                
+                uporabnik = get_current_user(token)                
                 st.session_state.token = token_str
                 st.session_state.is_logged_in = True
-
                 set_current_user(uporabnik)
                 expiration_time = datetime.utcnow() + timedelta(minutes=30)
-
                 clear_session_db()
                 add_to_session_db(token=token_str,
                                   user=uporabnik,
-                                  expiration_time=expiration_time.strftime('%Y-%m-%dT%H:%M:%S.%f'))
-  
+                                  expiration_time=expiration_time.strftime('%Y-%m-%dT%H:%M:%S.%f'))  # noqa: E501
                 container.success("You have successfully logged in.")
                 # Check user role
                 user_role = decoded_token.get("role", "")
@@ -297,11 +287,11 @@ def login():
                     st.rerun()
                 else:
                     st.sidebar.empty()
-                    st.rerun()            
+                    st.rerun()
             else:
                 container.error("Invalid email or password. Please try again.")
                 time.sleep(1)
-                st.rerun() 
+                st.rerun()
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -317,7 +307,7 @@ def sign_up():
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         submit = st.form_submit_button("Register")
-        
+
         if submit:
             # Check username length
             if len(username) < 3:
@@ -326,14 +316,15 @@ def sign_up():
             elif not re.match(r"[^@]+@[^@]+\.[^@]+", email):
                 st.error("Invalid email format.")
             # Check password length and complexity
-            elif len(password) < 14 or not any(c.isupper() for c in password) or not any(c.isdigit() for c in password) or not any(c.isalnum() for c in password):
+            elif len(password) < 14 or not any(c.isupper() for c in password) or not any(c.isdigit() for c in password) or not any(c.isalnum() for c in password):  # noqa: E501
                 st.error(
-                    "Password must be at least 14 characters long and contain at least one uppercase letter, one digit, and one special character.")
+                    "Password must be at least 14 characters long and contain at least one uppercase letter, one digit, and one special character.")  # noqa: E501
             else:
+                hashed_password = hash_password(password)
                 # Call FastaAPI to add a new user
                 url = BACKEND_URL + "/sign-up"
                 response = requests.post(
-                    url, json={"email": email, "username": username, "password": password,"role":"normal_user"})
+                    url, json={"email": email, "username": username, "password": hashed_password, "role": "normal_user"})  # noqa: E501
                 if response.status_code == 201:
                     st.success("you have successfully registered.")
                     st.session_state.is_logged_in = True
@@ -341,23 +332,23 @@ def sign_up():
                     uporabnik = get_current_user(token)
                     set_current_user(uporabnik)
                     st.session_state.token = str(token)
-                    
+
                     clear_session_db()
 
                     expiration_time = datetime.utcnow() + timedelta(minutes=30)
-                    
+
                     add_to_session_db(token=str(token),
                                       user=uporabnik,
-                                      expiration_time=expiration_time.strftime('%Y-%m-%dT%H:%M:%S.%f'))
-                    
+                                      expiration_time=expiration_time.strftime('%Y-%m-%dT%H:%M:%S.%f'))  # noqa: E501
+
                     st.sidebar.empty()
                     st.rerun()
                 elif response.status_code == 400:
                     st.error("User with that email already exists.")
                 else:
-                    st.error("Error occurred during user registration. Please try again.")
-                
-                
+                    st.error("Error occurred during user registration. Please try again.")  # noqa: E501
+
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #                         EVIDENCE
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -371,12 +362,12 @@ def get_evidenca():
     return df_ev
 
 
-def add_evidenca(ev: shemas.Evidenca,token):
+def add_evidenca(ev: shemas.Evidenca, token):
     url = BACKEND_URL + "/evidenca"
     data = ev.model_dump()
-    data['datum'] = pd.to_datetime(data['datum']).strftime('%Y-%m-%dT%H:%M:%S.%f')
+    data['datum'] = pd.to_datetime(data['datum']).strftime('%Y-%m-%dT%H:%M:%S.%f')  # noqa: E501
     data['token'] = token
-    #st.write(data)
+    # st.write(data)
     response = requests.post(url,
                              json=data,
                              headers={'Content-Type': 'application/json'})
@@ -388,12 +379,12 @@ def display_ev():
     # Display the existing data table
     df = get_evidenca()
     df = df.drop(columns=['id_evidenca'])
-    df['datum'] = pd.to_datetime(df['datum'], format='%Y-%m-%dT%H:%M:%S').dt.strftime('%d/%m/%Y')
+    df['datum'] = pd.to_datetime(df['datum'], format='%Y-%m-%dT%H:%M:%S').dt.strftime('%d/%m/%Y')  # noqa: E501
     df.rename(columns={'user_username': 'User', 'opravilo': 'Task',
                        'done': 'Done', 'datum': 'Date'}, inplace=True)
     # rearange columns
     df = df[['User', 'Task', 'Done', 'Date']]
-    #display the latest entry first
+    # display the latest entry first
     df = df.iloc[::-1]
     return st.dataframe(df)
 
@@ -410,7 +401,7 @@ def opravila(token):
         "Done": st.checkbox("Done"),
         "Date": st.date_input("Date", format="DD/MM/YYYY")
     }
-    #st.write("new_row",new_row_data) 
+    # st.write("new_row",new_row_data)
     # submit button and adding to database
     if st.button("Submit"):
         nova_evidenca = shemas.Evidenca(
@@ -420,8 +411,8 @@ def opravila(token):
             datum=new_row_data["Date"]
         )
         # Add new entry to database if nova_evidenca is defined
-        #st.write("nova",nova_evidenca)
-        add_evidenca(nova_evidenca,token)
+        # st.write("nova",nova_evidenca)
+        add_evidenca(nova_evidenca, token)
         display_ev()
         st.rerun()
     display_ev()
@@ -440,14 +431,14 @@ def get_sredstva():
     return df_sr
 
 
-def add_sredstva(sr: shemas.Sredstva,token):
+def add_sredstva(sr: shemas.Sredstva, token):
     url = BACKEND_URL + "/sredstva"
     data = sr.model_dump()
     data['date'] = pd.to_datetime(data['date']).strftime('%Y-%m-%dT%H:%M:%S.%f')
     data['token'] = token
     st.write(data)
     response = requests.post(url,
-                            json=data,
+                            json = data,
                             headers={'Content-Type': 'application/json'})
     logging.info(f'Successfully added a new row to the table.')
     return response
@@ -458,10 +449,10 @@ def display_sred():
     df_sr = get_sredstva()
     df_sr = df_sr.drop(columns=['id_sredstva'])
     # datum format
-    df_sr['date'] = pd.to_datetime(df_sr['date'], format='%Y-%m-%dT%H:%M:%S').dt.strftime('%d/%m/%Y')
-    df_sr.rename(columns={'user_username': 'User', 'cistilo': 'Cleaning product',
-                 'stevilo': 'Number', 'denar': 'Cost', 'date': 'Date'}, inplace=True)
-    # rearange columns
+    df_sr['date'] = pd.to_datetime(df_sr['date'], format='%Y-%m-%dT%H:%M:%S').dt.strftime('%d/%m/%Y')  # noqa: E501
+    df_sr.rename(columns={'user_username': 'User', 'cistilo': 'Cleaning product',  # noqa: E501
+                 'stevilo': 'Number', 'denar': 'Cost', 'date': 'Date'}, inplace=True)  # noqa: E501
+    # Rearange columns
     df_sr = df_sr[['User', 'Cleaning product',
                    'Number', 'Cost', 'Date']]
     df_sr = df_sr.iloc[::-1]
@@ -487,7 +478,7 @@ def sredstva(token):
     if new_row_data["Stevilo"] and not new_row_data["Stevilo"].isdigit():
         st.error("Number of products must be an integer.")
         return
-    
+
     # submit button and adding to database
     if st.button("Submit"):
         if not all(new_row_data.values()):
@@ -539,8 +530,8 @@ def manage_users():
             "Select users to delete:", df['username'])
         if st.button("Delete Selected Users"):
             for username in selected_users:
-                delete_user(username,st.session_state.token)
-                st.rerun()
+                delete_user(username, st.session_state.token)
+            st.rerun()
         # Display the user DataFrame
         st.dataframe(df)
     else:
@@ -549,10 +540,11 @@ def manage_users():
 
 def sredstva_admin():
     df_sr = get_sredstva()
-    df_sr['date'] = pd.to_datetime(df_sr['date'], format='%Y-%m-%dT%H:%M:%S').dt.strftime('%d/%m/%Y')
-    df_sr.rename(columns={'user_username': 'User', 'id_sredstva':'id','cistilo': 'Cleaning product',
-                    'stevilo': 'Number', 'denar': 'Cost', 'date': 'Date'}, inplace=True)
-    df_sr = df_sr[['id','User', 'Cleaning product',
+    df_sr['date'] = pd.to_datetime(df_sr['date'], format='%Y-%m-%dT%H:%M:%S').dt.strftime('%d/%m/%Y')  # noqa: E501
+    df_sr.rename(columns={'user_username': 'User', 'id_sredstva': 'id', 'cistilo': 'Cleaning product',  # noqa: E501
+                        'stevilo': 'Number', 'denar': 'Cost', 'date': 'Date'}, inplace=True)  # noqa: E501
+    # Rearange columns
+    df_sr = df_sr[['id', 'User', 'Cleaning product',
                     'Number', 'Cost', 'Date']]
     df_sr = df_sr.iloc[::-1]
     return df_sr
@@ -560,11 +552,12 @@ def sredstva_admin():
 
 def opravila_admin():
     df_ev = get_evidenca()
-    #drop id_evidenca
-    df_ev['datum'] = pd.to_datetime(df_ev['datum'], format='%Y-%m-%dT%H:%M:%S').dt.strftime('%d/%m/%Y')
-    df_ev.rename(columns={'user_username': 'User','id_evidenca':'id' ,'opravilo': 'Task',
+    # drop id_evidenca
+    df_ev['datum'] = pd.to_datetime(df_ev['datum'], format='%Y-%m-%dT%H:%M:%S').dt.strftime('%d/%m/%Y')  # noqa: E501
+    df_ev.rename(columns={'user_username': 'User', 'id_evidenca': 'id', 'opravilo': 'Task',  # noqa: E501
                     'done': 'Done', 'datum': 'Date'}, inplace=True)
-    df_ev = df_ev[['id','User', 'Task', 'Done', 'Date']]
+    # Rearange columns
+    df_ev = df_ev[['id', 'User', 'Task', 'Done', 'Date']]
     df_ev = df_ev.iloc[::-1]
     return df_ev
 
@@ -576,14 +569,14 @@ def delete_selected_rows_sredstva(selected_rows):
                 username, id_value = row['User'], row['id']
 
                 # Make API call to delete the record
-                delete_api_url = BACKEND_URL + f"/sredstva/{username}/{id_value}"  # Adjust the URL as needed
+                delete_api_url = BACKEND_URL + f"/sredstva/{id_value}"
                 response = requests.delete(delete_api_url)
 
                 # Check the response status code
                 if response.status_code == 200:
-                    st.success(f"Successfully deleted record for {username} with ID {id_value}")
+                    st.success(f"Successfully deleted record for {username} with ID {id_value}")  # noqa: E501
                 else:
-                    st.error(f"Failed to delete record for {username} with ID {id_value}")
+                    st.error(f"Failed to delete record for {username} with ID {id_value}")  # noqa: E501
         else:
             st.warning("No rows selected for deletion.")
     elif isinstance(selected_rows, list):
@@ -592,61 +585,59 @@ def delete_selected_rows_sredstva(selected_rows):
 
             # Make API call to delete the record
             if username is not None and id_value is not None:
-                delete_api_url = BACKEND_URL + f"/sredstva/{username}/{id_value}"  # Adjust the URL as needed
+                delete_api_url = BACKEND_URL + f"/sredstva/{username}/{id_value}"  # noqa: E501
                 response = requests.delete(delete_api_url)
 
                 # Check the response status code
                 if response.status_code == 200:
-                    st.success(f"Successfully deleted record for {username} with ID {id_value}")
+                    st.success(f"Successfully deleted record for {username} with ID {id_value}")  # noqa: E501
                 else:
-                    st.error(f"Failed to delete record for {username} with ID {id_value}")
+                    st.error(f"Failed to delete record for {username} with ID {id_value}")  # noqa: E501
             else:
                 st.warning("Invalid data format in the list.")
     else:
         st.warning("Selected rows are not in the correct format.")
 
-    
+
 def manage_sredstva():
     df_sr = sredstva_admin()
-    display_sred()
-    
     # Select rows to delete
     selected_indices = st.multiselect("Select rows to delete:", df_sr.index)
     df_to_delete = df_sr.loc[selected_indices]
-    
     if st.button("Delete Selected Rows"):
         delete_selected_rows_sredstva(df_to_delete)
+        # Rerun the page
         st.rerun()
- 
+    display_sred()
+
 
 def delete_selected_rows_opravila(selected_rows):
-    for index, row in selected_rows.iterrows():
-        username, id_value = row['User'], row['id']
+    for row in selected_rows.iterrows():
+        id_value = row['id']
 
         # Make API call to delete the record
-        delete_api_url = BACKEND_URL+f"/evidenca/{username}/{id_value}"
+        delete_api_url = BACKEND_URL+f"/evidenca/{id_value}"
         response = requests.delete(delete_api_url)
 
         # Check the response status code
         if response.status_code == 200:
-            st.success(f"Successfully deleted record for {username} with ID {id_value}")
+            st.success(f"Successfully deleted record with ID {id_value}")
         else:
-            st.error(f"Failed to delete record for {username} with ID {id_value}")            
-    
-    
+            st.error(f"Failed to delete record with ID {id_value}")
+
+
 def manage_opravila():
     # Get the data from the backend
     df_ev = opravila_admin()
-    display_ev()
-
     # Select rows to delete
     selected_indices = st.multiselect("Select rows to delete:", df_ev.index)
     selected_rows = df_ev.loc[selected_indices]
-
     if st.button("Delete Selected Rows"):
         # Delete the selected rows
         delete_selected_rows_opravila(selected_rows)
+        # Rerun the page
         st.rerun()
+    display_ev()
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -659,7 +650,7 @@ def display_api():
     st.divider()
     st.markdown("**Endpoint:** `/sign_up`")
     st.markdown("**Method:** POST")
-    st.write("Adds a new user to the database. Checks if the user already exists and if the provided email is in use.")
+    st.write("Adds a new user to the database. Checks if the user already exists and if the provided email is in use.")  # noqa: E501
     st.code('''
         {
         "username": "string",
@@ -668,9 +659,15 @@ def display_api():
         "role": "string"
         }''', language='json')
     st.divider()
-    st.markdown("**Endpoint** `/login`")
+    st.markdown("**Endpoint** `/auth_user`")
     st.markdown("**Method:** POST")
-    st.write("Calls a function to authenticate user, creates a token for the given user.")
+    st.write("Calls a function to authenticate user.")
+    st.code('''
+        {
+            "email": "string",
+            "password": "string"
+        }
+        ''', language='json')
     st.divider()
     st.markdown("**Endpoint:** `/users/`")
     st.markdown("**Method:** GET")
@@ -682,7 +679,7 @@ def display_api():
             "username": "user1",
             "email": "emailUser1@gmail.com",
             "id": 2,
-            "password": "$2b$223T3F9fgmSPIvaRce232062Oic8JQ0POCpxa03.V5dRemwRm9paEPv6",
+            "password": "$2b$223T3F9fgmSPIvaRce232062Oic8JQ0POCpxa03.V5dRemwRm9paEPv6",  # noqa: E501
             "role": "normal_user"
             }
             ]''', language='json')
@@ -696,10 +693,10 @@ def display_api():
             "username": "user2",
             "email": "emailUser2@gmail.com",
             "id": 3,
-            "password": "$2b$223T3F9fgmSPIvaRce232062Oic8JQ0POCpxa03.V5dRemwRm9paEPv6",
+            "password": "$2b$223T3F9fgmSPIvaRce232062Oic8JQ0POCpxa03.V5dRemwRm9paEPv6",  # noqa: E501
             "role": "normal_user"
             }
-            ''',language='json') 
+            ''', language='json')
     st.divider()
     st.markdown("**Endpoint:** `/users/{username}/`")
     st.markdown("**Method:** DELETE")
@@ -714,10 +711,10 @@ def display_api():
             "username": "user2",
             "email": "emailUser2@gmail.com",
             "id": 3,
-            "password": "$2b$223T3F9fgmSPIvaRce232062Oic8JQ0POCpxa03.V5dRemwRm9paEPv6",
+            "password": "$2b$223T3F9fgmSPIvaRce232062Oic8JQ0POCpxa03.V5dRemwRm9paEPv6",  # noqa: E501
             "role": "normal_user"
             }
-            ''',language='json') 
+            ''', language='json')
     st.divider()
     st.markdown("**Endpoint:** `/opravila/`")
     st.markdown("**Method:** GET")
@@ -733,7 +730,7 @@ def display_api():
             "Dining room",
             "Trash"
             ]
-            ''',language='json')
+            ''', language='json')
     st.divider()
     st.markdown("**Endpoint:** `/evidenca/`")
     st.markdown("**Method:** GET")
@@ -749,11 +746,11 @@ def display_api():
                 "opravilo": "Floor"
             }
             ]
-            ''',language='json')
+            ''', language='json')
     st.divider()
     st.markdown("**Endpoint:** `/evidenca/{username}`")
     st.markdown("**Method:** GET")
-    st.write("Get all inputs from a specific user on cleaning chores from the database.")
+    st.write("Get all inputs from a specific user on cleaning chores from the database.")  # noqa: E501
     st.markdown("**Response:**")
     st.code('''
             [
@@ -765,7 +762,7 @@ def display_api():
                 "opravilo": "Floor"
             }
             ]
-            ''',language='json')
+            ''', language='json')
     st.divider()
     st.markdown("**Endpoint:** `/evidenca`")
     st.markdown("**Method:** POST")
@@ -777,7 +774,7 @@ def display_api():
             "done": true,
             "datum": "2024-03-13T15:12:11.181Z"
             }
-        ''',language='json')
+        ''', language='json')
     st.divider()
     st.markdown("**Endpoint:** `/evidenca/{username}/{id_evidenca}`")
     st.markdown("**Method:** DELETE")
@@ -798,7 +795,7 @@ def display_api():
             "Toilet paper",
             "Paper towels"
             ]
-            ''',language='json')
+            ''', language='json')
     st.divider()
     st.markdown("**Endpoint:** `/sredstva`")
     st.markdown("**Method:** POST")
@@ -811,11 +808,11 @@ def display_api():
             "denar": 0,
             "date": "2024-03-13T15:56:12.149Z"
             }
-            ''',language='json')
+            ''', language='json')
     st.divider()
     st.markdown("**Endpoint:** `/sredstva/{username}`")
     st.markdown("**Method:** GET")
-    st.write("Get all inputs from a specific user on cleaning agents from the database.")
+    st.write("Get all inputs from a specific user on cleaning agents from the database.")  # noqa: E501
     st.code('''
             [
             {
@@ -827,15 +824,15 @@ def display_api():
                 "denar": 5.4
             }
             ]
-            ''',language='json')
+            ''', language='json')
     st.divider()
     st.markdown("**Endpoint:** `/sredstva/{username}/{id_sredstva}`")
     st.markdown("**Method:** DELETE")
-    st.write("Deletes a specific entry inside clening agents table for a user from the database.")
+    st.write("Deletes a specific entry inside clening agents table for a user from the database.")  # noqa: E501
     st.divider()
     st.markdown("**Endpoint:** `/sredstva/`")
     st.markdown("**Method:** GET")
-    st.write("Get all inputs from the cleaning agents table from the database.")
+    st.write("Get all inputs from the cleaning agents table from the database.")  # noqa: E501
     st.code('''
             [
             {
@@ -847,9 +844,9 @@ def display_api():
                 "denar": 5.4
             }
             ]
-            ''',language='json')
+            ''', language='json')
     st.divider()
-    st.markdown("**Endpoint:** `/session/`")
+    st.markdown("**Endpoint:** `/session`")
     st.markdown("**Method:** GET")
     st.write("Get last active session/token from the database.")
     st.markdown("**Response:**")
@@ -858,13 +855,13 @@ def display_api():
             "token": string,
             "user": user1
             }
-            ''',language='json')
+            ''', language='json')
     st.divider()
     st.markdown("**Endpoint:** `/clear_session/`")
     st.markdown("**Method:** POST")
     st.write("Clears the session database.")
     st.divider()
-    st.markdown("**Endpoint:** `/session/`")
+    st.markdown("**Endpoint:** `/session_create`")
     st.markdown("**Method:** POST")
     st.write("Adds a new session/token to the database.")
     st.code('''
@@ -873,7 +870,7 @@ def display_api():
             "expiration_time": "2024-03-13T16:06:02.333Z",
             "user": "string"
             }
-            ''',language='json')
+            ''', language='json')
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #                         LOG OUT
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -886,6 +883,7 @@ def log_out():
     clear_session_db()
     # Rerun the app to update the sidebar options
     st.rerun()
+
 
 if __name__ == "__main__":
     main()
