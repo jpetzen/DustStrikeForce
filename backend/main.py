@@ -11,9 +11,10 @@ from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from sqlalchemy.exc import IntegrityError
 from typing import Dict, Any, List
-from passlib.context import CryptContext
 from sqlalchemy import create_engine
+from typing import Union
 import logging
+
 
 # Set up logger
 logger = logging.getLogger(__name__)
@@ -39,9 +40,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 TOKEN_PREFIX = "Bearer"
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-# Create an instance of CryptContext
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def create_or_update_item(item_list: List[Any],
@@ -110,6 +108,7 @@ def get_db():
 #                         AUTHENTICATION
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+
 def create_access_token(data: Dict[str, Any],
                         expires_delta: timedelta = None) -> str:
     """
@@ -126,7 +125,9 @@ def create_access_token(data: Dict[str, Any],
 
 
 def verify_token(token: str,
-                 oauth2_scheme: OAuth2PasswordBearer) -> str:
+                 oauth2_scheme:  Union[OAuth2PasswordBearer,
+                                       OAuth2PasswordRequestForm,
+                                       Dict[str, str]] = Depends()) -> str:
     """
     Verify the JWT token and return the username.
     """
@@ -161,26 +162,59 @@ def authenticate_user(username: str, password: str, db: Session = None):
     return user
 
 
-@app.post("/token", status_code=status.HTTP_200_OK)
-def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(),
-                           db: Session = Depends(get_db)):
+def authenticate_email(email: str, password: str):
+    # Get the database session
+    db = SessionLocal()
+    try:
+        # Query the user from the database
+        user = db.query(Uporabniki).filter(Uporabniki.email == email).first()
+
+        # Check if the user exists and the password is correct
+        if user and password == user.password:
+            token_payload = {
+                "sub": user.email,
+                "role": user.role,  # Include other relevant claims
+                "exp": datetime.utcnow() + timedelta(hours=6)
+                # Set expiration time
+            }
+            secret_key = SECRET_KEY  # Replace with your actual secret key
+            token = jwt.encode(token_payload, secret_key, algorithm="HS256")
+            return token
+    finally:
+        db.close()
+
+    return None
+
+
+@app.post("/auth_user", status_code=status.HTTP_200_OK)
+def get_user(form_data: shemas.LoginUser, db: Session = Depends(get_db)):
     """
     API to authenticate user, creates a token for the given user.
     """
-    user = authenticate_user(form_data.username, form_data.password, db)
-    if not user:
+    email, password = form_data.email, form_data.password
+    user = db.query(Uporabniki).filter(Uporabniki.email == email).first()
+
+    if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password"
+            detail="Incorrect email or password"
         )
-
-    # Generate JWT token for the authenticated user
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(data={"sub": user.username,
-                                             "role": user.role},
-                                       expires_delta=access_token_expires)
-    return {"access_token": f"{TOKEN_PREFIX} {access_token}",
-            "token_type": "bearer"}
+    # Check if the user exists and the password is correct
+    if user and password == user.password:
+        token_payload = {
+            "sub": user.email,
+            "role": user.role,  # Include other relevant claims
+            "exp": datetime.utcnow() + timedelta(hours=6)
+            # Set expiration time
+        }
+        secret_key = SECRET_KEY  # Replace with your actual secret key
+        token = jwt.encode(token_payload, secret_key, algorithm="HS256")
+        return {"token": token}
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect email or password"
+        )
 
 
 @app.post("/sign-up", status_code=status.HTTP_201_CREATED)
@@ -206,13 +240,10 @@ def sign_up(user: shemas.Uporabniki,
             detail="Email already registered"
         )
 
-    # Hash the user's password
-    hashed_password = pwd_context.hash(user.password)
-
     # If username and email are unique, proceed with user registration
     db_user = Uporabniki(username=user.username,
                          email=user.email,
-                         password=hashed_password,
+                         password=user.password,
                          role=user.role)
     try:
         db.add(db_user)
@@ -418,18 +449,13 @@ def add_evidenca(evidenca: shemas.Evidenca,
     return db_evidenca
 
 
-@app.delete("/evidenca/{username}/{id_evidenca}",
+@app.delete("/evidenca/{id_evidenca}",
             status_code=status.HTTP_200_OK)
-def delete_evidenca(username: str,
-                    id_evidenca: int,
+def delete_evidenca(id_evidenca: int,
                     db: Session = Depends(get_db)):
     """
     API call to delete `evidenca` for user from the database.
     """
-    user = db.query(Uporabniki).filter(Uporabniki.username == username).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     evidenca = db.query(Evidenca).filter(
         Evidenca.id_evidenca == id_evidenca).first()
     if not evidenca:
@@ -497,24 +523,15 @@ def get_sredstva(username: str,
     return sredstva
 
 
-@app.delete("/sredstva/{username}/{id_sredstva}",
+@app.delete("/sredstva/{id_sredstva}",
             status_code=status.HTTP_200_OK)
-def delete_sredstva(username: str,
-                    id_sredstva: int,
+def delete_sredstva(id_sredstva: int,
                     db: Session = Depends(get_db)):
     """
     API call to delete clening agent for user from the database.
     """
-    user = db.query(Uporabniki).filter(
-        Uporabniki.username == username).first()
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-
     sredstva = db.query(Sredstva).filter(
-        Sredstva.id_sredstva == id_sredstva,
-        Sredstva.user_username == username).first()
+        Sredstva.id_sredstva == id_sredstva).first()
 
     if not sredstva:
         raise HTTPException(
@@ -542,7 +559,7 @@ def get_all_sredstva(db: Session = Depends(get_db)):
 #                            SESSIONS
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-@app.get("/session/", status_code=status.HTTP_200_OK)
+@app.get("/session", status_code=status.HTTP_200_OK)
 def get_last_session(db: Session = Depends(get_db)):
     """
     API call to get last session from the database.
@@ -571,7 +588,7 @@ def clear_session(db: Session = Depends(get_db)):
     return
 
 
-@app.post("/session/", status_code=status.HTTP_201_CREATED)
+@app.post("/session_create", status_code=status.HTTP_201_CREATED)
 def create_session(session_token: shemas.ResetToken,
                    db: Session = Depends(get_db)):
     """
