@@ -33,7 +33,7 @@ services:
       retries: 3
 
   frontend:
-    image: petzen21/force_frontend:2.0.5
+    image: petzen21/force_frontend:2.0.8
     ports:
       - "8072:8072"
     depends_on:
