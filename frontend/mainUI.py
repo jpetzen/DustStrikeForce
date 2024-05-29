@@ -357,7 +357,11 @@ def sign_up():
 def get_evidenca():
     url = BACKEND_URL+"/evidenca/"
     response = requests.get(url)
-    df_ev = pd.DataFrame(response.json())
+    data = response.json()
+    if isinstance(data, list):
+        df_ev = pd.DataFrame(data)
+    else:
+        df_ev = pd.DataFrame(columns=['User', 'Task', 'Done', 'Date'])
     logging.info(f'Successfully loaded the table from the database.')
     return df_ev
 
@@ -378,16 +382,19 @@ def add_evidenca(ev: shemas.Evidenca, token):
 def display_ev():
     # Display the existing data table
     df = get_evidenca()
-    df = df.drop(columns=['id_evidenca'])
-    df['datum'] = pd.to_datetime(df['datum'], format='%Y-%m-%dT%H:%M:%S').dt.strftime('%d/%m/%Y')  # noqa: E501
-    df.rename(columns={'user_username': 'User', 'opravilo': 'Task',
-                       'done': 'Done', 'datum': 'Date'}, inplace=True)
-    # rearange columns
-    df = df[['User', 'Task', 'Done', 'Date']]
-    # display the latest entry first
-    df = df.iloc[::-1]
-    return st.dataframe(df)
-
+    if not df.empty:
+        df = df.drop(columns=['id_evidenca'])
+        df['datum'] = pd.to_datetime(df['datum'], format='%Y-%m-%dT%H:%M:%S').dt.strftime('%d/%m/%Y')  # noqa: E501
+        df.rename(columns={'user_username': 'User', 'opravilo': 'Task',
+                        'done': 'Done', 'datum': 'Date'}, inplace=True)
+        # rearange columns
+        df = df[['User', 'Task', 'Done', 'Date']]
+        # display the latest entry first
+        df = df.iloc[::-1]
+        return st.dataframe(df)
+    else:
+        st.info("No data found.")
+        
 
 def opravila(token):
     # get data from database opravila
@@ -413,6 +420,7 @@ def opravila(token):
         # Add new entry to database if nova_evidenca is defined
         # st.write("nova",nova_evidenca)
         add_evidenca(nova_evidenca, token)
+        # if there is no data to be displayed, display a container
         display_ev()
         st.rerun()
     display_ev()
@@ -426,7 +434,11 @@ def opravila(token):
 def get_sredstva():
     url = BACKEND_URL+"/sredstva/"
     response = requests.get(url)
-    df_sr = pd.DataFrame(response.json())
+    data = response.json()
+    if isinstance(data, list):
+        df_sr = pd.DataFrame(data)
+    else:
+        df_sr = pd.DataFrame(columns=['User', 'Cleaning product', 'Number', 'Cost', 'Date'])
     logging.info(f'Successfully loaded the table from the database.')
     return df_sr
 
@@ -447,17 +459,19 @@ def add_sredstva(sr: shemas.Sredstva, token):
 def display_sred():
     # Display the existing data table
     df_sr = get_sredstva()
-    df_sr = df_sr.drop(columns=['id_sredstva'])
-    # datum format
-    df_sr['date'] = pd.to_datetime(df_sr['date'], format='%Y-%m-%dT%H:%M:%S').dt.strftime('%d/%m/%Y')  # noqa: E501
-    df_sr.rename(columns={'user_username': 'User', 'cistilo': 'Cleaning product',  # noqa: E501
-                 'stevilo': 'Number', 'denar': 'Cost', 'date': 'Date'}, inplace=True)  # noqa: E501
-    # Rearange columns
-    df_sr = df_sr[['User', 'Cleaning product',
-                   'Number', 'Cost', 'Date']]
-    df_sr = df_sr.iloc[::-1]
-    return st.dataframe(df_sr)
-
+    if not df_sr.empty:
+        df_sr = df_sr.drop(columns=['id_sredstva'])
+        # datum format
+        df_sr['date'] = pd.to_datetime(df_sr['date'], format='%Y-%m-%dT%H:%M:%S').dt.strftime('%d/%m/%Y')  # noqa: E501
+        df_sr.rename(columns={'user_username': 'User', 'cistilo': 'Cleaning product',  # noqa: E501
+                    'stevilo': 'Number', 'denar': 'Cost', 'date': 'Date'}, inplace=True)  # noqa: E501
+        # Rearange columns
+        df_sr = df_sr[['User', 'Cleaning product',
+                    'Number', 'Cost', 'Date']]
+        df_sr = df_sr.iloc[::-1]
+        return st.dataframe(df_sr)
+    else:
+        st.info("No data found.")
 
 def sredstva(token):
     # get data from database sredstva for dropdown menu
@@ -540,26 +554,31 @@ def manage_users():
 
 def sredstva_admin():
     df_sr = get_sredstva()
-    df_sr['date'] = pd.to_datetime(df_sr['date'], format='%Y-%m-%dT%H:%M:%S').dt.strftime('%d/%m/%Y')  # noqa: E501
-    df_sr.rename(columns={'user_username': 'User', 'id_sredstva': 'id', 'cistilo': 'Cleaning product',  # noqa: E501
-                        'stevilo': 'Number', 'denar': 'Cost', 'date': 'Date'}, inplace=True)  # noqa: E501
-    # Rearange columns
-    df_sr = df_sr[['id', 'User', 'Cleaning product',
-                    'Number', 'Cost', 'Date']]
-    df_sr = df_sr.iloc[::-1]
-    return df_sr
-
+    if not df_sr.empty:
+        df_sr['date'] = pd.to_datetime(df_sr['date'], format='%Y-%m-%dT%H:%M:%S').dt.strftime('%d/%m/%Y')  # noqa: E501
+        df_sr.rename(columns={'user_username': 'User', 'id_sredstva': 'id', 'cistilo': 'Cleaning product',  # noqa: E501
+                            'stevilo': 'Number', 'denar': 'Cost', 'date': 'Date'}, inplace=True)  # noqa: E501
+        # Rearange columns
+        df_sr = df_sr[['id', 'User', 'Cleaning product',
+                        'Number', 'Cost', 'Date']]
+        df_sr = df_sr.iloc[::-1]
+        return df_sr
+    else:
+        st.info("No data found.")
 
 def opravila_admin():
     df_ev = get_evidenca()
-    # drop id_evidenca
-    df_ev['datum'] = pd.to_datetime(df_ev['datum'], format='%Y-%m-%dT%H:%M:%S').dt.strftime('%d/%m/%Y')  # noqa: E501
-    df_ev.rename(columns={'user_username': 'User', 'id_evidenca': 'id', 'opravilo': 'Task',  # noqa: E501
-                    'done': 'Done', 'datum': 'Date'}, inplace=True)
-    # Rearange columns
-    df_ev = df_ev[['id', 'User', 'Task', 'Done', 'Date']]
-    df_ev = df_ev.iloc[::-1]
-    return df_ev
+    if not df_ev.empty:
+        # drop id_evidenca
+        df_ev['datum'] = pd.to_datetime(df_ev['datum'], format='%Y-%m-%dT%H:%M:%S').dt.strftime('%d/%m/%Y')  # noqa: E501
+        df_ev.rename(columns={'user_username': 'User', 'id_evidenca': 'id', 'opravilo': 'Task',  # noqa: E501
+                        'done': 'Done', 'datum': 'Date'}, inplace=True)
+        # Rearange columns
+        df_ev = df_ev[['id', 'User', 'Task', 'Done', 'Date']]
+        df_ev = df_ev.iloc[::-1]
+        return df_ev
+    else:
+        st.info("No data found.")
 
 
 def delete_selected_rows_sredstva(selected_rows):
@@ -601,18 +620,21 @@ def delete_selected_rows_sredstva(selected_rows):
 
 def manage_sredstva():
     df_sr = sredstva_admin()
-    # Select rows to delete
-    selected_indices = st.multiselect("Select rows to delete:", df_sr.index)
-    df_to_delete = df_sr.loc[selected_indices]
-    if st.button("Delete Selected Rows"):
-        delete_selected_rows_sredstva(df_to_delete)
-        # Rerun the page
-        st.rerun()
-    display_sred()
-
+    # Check if df_sr is not None before proceeding
+    if df_sr is not None:
+        # Select rows to delete
+        selected_indices = st.multiselect("Select rows to delete:", df_sr.index)
+        df_to_delete = df_sr.loc[selected_indices]
+        if st.button("Delete Selected Rows"):
+            delete_selected_rows_sredstva(df_to_delete)
+            # Rerun the page
+            st.rerun()
+        display_sred()
+    else:
+        st.info("No data found.")
 
 def delete_selected_rows_opravila(selected_rows):
-    for row in selected_rows.iterrows():
+    for index,row in selected_rows.iterrows():
         id_value = row['id']
 
         # Make API call to delete the record
@@ -629,15 +651,19 @@ def delete_selected_rows_opravila(selected_rows):
 def manage_opravila():
     # Get the data from the backend
     df_ev = opravila_admin()
-    # Select rows to delete
-    selected_indices = st.multiselect("Select rows to delete:", df_ev.index)
-    selected_rows = df_ev.loc[selected_indices]
-    if st.button("Delete Selected Rows"):
-        # Delete the selected rows
-        delete_selected_rows_opravila(selected_rows)
-        # Rerun the page
-        st.rerun()
-    display_ev()
+    # Check if df_ev is not None before proceeding
+    if df_ev is not None:
+        # Select rows to delete
+        selected_indices = st.multiselect("Select rows to delete:", df_ev.index)
+        selected_rows = df_ev.loc[selected_indices]
+        if st.button("Delete Selected Rows"):
+            # Delete the selected rows
+            delete_selected_rows_opravila(selected_rows)
+            # Rerun the page
+            st.rerun()
+        display_ev()
+    else:
+        st.info("No data found.")
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
