@@ -22,6 +22,13 @@ https://www.docker.com/products/docker-desktop/
 
 ```sh
 
+Pull the repository:
+` git clone https://github.com/jpetzen/DustStrikeForce.git`
+
+```
+
+```sh
+
 `docker pull petzen21/force_frontend:2.0.8`
 `docker pull petzen21/force_backend:2.0.5`
 `docker pull petzen21/postgres:latest`
