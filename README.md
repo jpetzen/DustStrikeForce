@@ -17,6 +17,9 @@
 
 ### Instructions
 
+You will need Docker Desktop to run it: 
+https://www.docker.com/products/docker-desktop/
+
 ```sh
 
 `docker pull petzen21/force_frontend:2.0.8`
