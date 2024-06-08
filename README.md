@@ -29,6 +29,7 @@ Pull the repository:
 
 ```sh
 
+To run it: 
 `docker compose up`
 
 ```
