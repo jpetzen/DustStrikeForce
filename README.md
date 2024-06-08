@@ -20,16 +20,15 @@
 You will need Docker Desktop to run it: 
 https://www.docker.com/products/docker-desktop/
 
+Pull the repository:
 ```sh
 
-Pull the repository:
 ` git clone https://github.com/jpetzen/DustStrikeForce.git`
 
 ```
-
+To run it: 
 ```sh
 
-To run it: 
 `docker compose up`
 
 ```
