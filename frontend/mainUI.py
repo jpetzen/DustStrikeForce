@@ -480,15 +480,15 @@ def sredstva(token):
         "Datum": st.date_input("Date", format="DD/MM/YYYY")
     }
 
-    # Validate 'Number' input
-    if new_row_data["Stevilo"] and not new_row_data["Stevilo"].isdigit():
-        st.error("Number of products must be an integer.")
-        return
-
     # submit button and adding to database
     if st.button("Submit"):
         if not all(new_row_data.values()):
             st.error("Please fill in all fields.")
+            # Validate 'Number' input
+        if new_row_data["Stevilo"] and not new_row_data["Stevilo"].isdigit():
+            st.error("Number of products must be an integer.")
+            time.sleep(0.3)
+            st.rerun()
         else:
             nova_sredstva = shemas.Sredstva(
                 user_username=current_user,
