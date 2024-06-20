@@ -207,7 +207,7 @@ def get_user(form_data: shemas.LoginUser, db: Session = Depends(get_db)):
             "exp": datetime.utcnow() + timedelta(hours=6)
             # Set expiration time
         }
-        secret_key = SECRET_KEY  # Replace with your actual secret key
+        secret_key = SECRET_KEY 
         token = jwt.encode(token_payload, secret_key, algorithm="HS256")
         return {"token": token}
     else:
