@@ -205,14 +205,6 @@ def get_current_user(token):
     return user_info.get('username') if user_info else None
 
 
-def verify_password(plain_password, hashed_password):
-    # Hash the plain password
-    hashed_plain_password = hash_password(plain_password)
-
-    # Compare the hashed plain password with the hashed password
-    return hashed_plain_password == hashed_password
-
-
 def authenticate_user_with_token(token):
     # Get user information from the backend using the token
     headers = {"Authorization": f"Bearer {token}"}
